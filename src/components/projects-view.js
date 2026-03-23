@@ -111,7 +111,7 @@ export async function renderProjects(container) {
 
         const btnNew = document.getElementById('btn-new-project');
         if (btnNew) {
-            btnNew.addEventListener('click', () => {
+            btnNew.addEventListener('click', async () => {
                 const name = prompt('Ingrese el nombre del nuevo proyecto:');
                 if (name && name.trim() !== '') {
                     const newCode = `PRJ-${String(projects.length + 1).padStart(3, '0')}`;
@@ -129,7 +129,7 @@ export async function renderProjects(container) {
 
         const selects = document.querySelectorAll('.status-select');
         selects.forEach(select => {
-            select.addEventListener('change', (e) => {
+            select.addEventListener('change', async (e) => {
                 const id = e.target.getAttribute('data-id');
                 const newStatus = e.target.value;
                 const project = projects.find(p => p.id === id);
@@ -148,7 +148,7 @@ export async function renderProjects(container) {
 
         const editBtns = document.querySelectorAll('.btn-edit-project');
         editBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 const projectName = e.target.closest('button').dataset.name;
                 openEditModal(projectName);
             });
@@ -156,7 +156,7 @@ export async function renderProjects(container) {
 
         const deleteBtns = document.querySelectorAll('.btn-delete-project');
         deleteBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', async (e) => {
                 const btnEl = e.target.closest('button');
                 const projectName = btnEl.dataset.name;
                 const projectId = btnEl.dataset.id;
@@ -185,7 +185,7 @@ export async function renderProjects(container) {
 
         const btnClearImports = document.getElementById('btn-clear-imports');
         if (btnClearImports) {
-            btnClearImports.addEventListener('click', () => {
+            btnClearImports.addEventListener('click', async () => {
                 const allEntries = StorageService.getAllEntries();
                 const historicalEntries = allEntries.filter(e =>
                     e.professionals && e.professionals.length === 1 &&
@@ -343,7 +343,7 @@ export async function renderProjects(container) {
             modalOverlay.classList.add('hidden');
         });
 
-        document.getElementById('btn-save-edit').addEventListener('click', () => {
+        document.getElementById('btn-save-edit').addEventListener('click', async () => {
             const entryId = selectPeriod.value;
             const entry = projectEntries.find(e => e.id === entryId);
             

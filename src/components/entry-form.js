@@ -132,7 +132,7 @@ export async function renderEntryForm(container) {
 
     addBtn.addEventListener('click', addProfessionalRow);
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(form);
         const professionals = [];

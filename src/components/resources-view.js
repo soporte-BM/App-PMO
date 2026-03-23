@@ -54,7 +54,7 @@ export async function renderResources(container) {
         // Manual Add
         const btnNew = document.getElementById('btn-new-pro');
         if (btnNew) {
-            btnNew.addEventListener('click', () => {
+            btnNew.addEventListener('click', async () => {
                 const name = prompt('Nombre del profesional:');
                 if (!name) return;
                 let period = prompt('Periodo (Ej: ene-25):');
