@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "build": "cd backend && npm install && npm run build",
+    "start": "cd backend && npm start"
+  },
   "devDependencies": {
     "webpack-cli": "^6.0.1"
   },
