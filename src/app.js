@@ -12,60 +12,65 @@ class App {
     }
 
     init() {
-        // Set Date
         const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         document.getElementById('current-date').textContent = new Date().toLocaleDateString('es-ES', dateOptions);
 
-        // Navigation
         this.navBtns.forEach(btn => {
-            btn.addEventListener('click', (e) => {
+            btn.addEventListener('click', () => {
                 const view = btn.dataset.view;
                 this.navigate(view);
-
-                // Active State
                 this.navBtns.forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
             });
         });
 
-        // "New Entry" button in header
         const btnNewEntry = document.getElementById('btn-new-entry');
         if (btnNewEntry) {
             btnNewEntry.addEventListener('click', () => {
                 this.navigate('entry');
-                // Update sidebar active state manually
                 this.navBtns.forEach(b => b.classList.remove('active'));
                 document.querySelector('[data-view="entry"]')?.classList.add('active');
             });
         }
 
-        // Initial Load
         this.navigate('dashboard');
     }
 
-    navigate(view) {
-        this.container.innerHTML = ''; // Clear current view
+    async navigate(view) {
+        this.container.innerHTML = '';
         const title = document.getElementById('page-title');
 
-        switch (view) {
-            case 'dashboard':
-                title.textContent = 'Dashboard Ejecutivo';
-                renderDashboard(this.container);
-                break;
-            case 'entry':
-                title.textContent = 'Ingreso de Datos Operacionales';
-                renderEntryForm(this.container);
-                break;
-            case 'projects':
-                title.textContent = 'Gestión de Proyectos';
-                renderProjects(this.container);
-                break;
-            case 'resources':
-                title.textContent = 'Maestro de Profesionales';
-                renderResources(this.container);
-                break;
-            default:
-                renderDashboard(this.container);
+        // Mostrar spinner mientras carga
+        this.container.innerHTML = '<div style="padding:2rem;color:#6b7280;text-align:center;">Cargando...</div>';
+
+        try {
+            switch (view) {
+                case 'dashboard':
+                    title.textContent = 'Dashboard Ejecutivo';
+                    await renderDashboard(this.container);
+                    break;
+                case 'entry':
+                    title.textContent = 'Ingreso de Datos Operacionales';
+                    await renderEntryForm(this.container);
+                    break;
+                case 'projects':
+                    title.textContent = 'Gestión de Proyectos';
+                    await renderProjects(this.container);
+                    break;
+                case 'resources':
+                    title.textContent = 'Maestro de Profesionales';
+                    await renderResources(this.container);
+                    break;
+                default:
+                    await renderDashboard(this.container);
+            }
+        } catch (error) {
+            console.error('Error al cargar la vista:', error);
+            this.container.innerHTML = `
+                <div style="padding:2rem;color:#dc2626;text-align:center;">
+                    <strong>Error al conectar con el servidor.</strong><br>
+                    <small>${error.message}</small>
+                </div>`;
         }
     }
 }
@@ -93,19 +98,17 @@ document.addEventListener('DOMContentLoaded', () => {
             loginContainer.classList.add('hidden');
             mainAppContainer.classList.remove('hidden');
             updateProfileUI(user);
-            new App(); // Start the app
+            new App();
         } else {
             loginContainer.classList.remove('hidden');
             mainAppContainer.classList.add('hidden');
         }
     };
 
-    // Events
     loginForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const email = document.getElementById('login-email').value;
         const password = document.getElementById('login-password').value;
-
         try {
             const user = AuthService.login(email, password);
             if (user) {
@@ -135,6 +138,5 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Initial check
     checkSession();
 });
