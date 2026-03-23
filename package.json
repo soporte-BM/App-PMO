@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "webpack-cli": "^6.0.1"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  }
+}

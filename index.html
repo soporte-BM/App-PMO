@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PMO Profitability Suite</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- SheetJS (XLSX) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="./styles/main.css">
+    <link rel="stylesheet" href="./styles/dashboard.css">
+    <link rel="stylesheet" href="./styles/forms.css">
+</head>
+
+<body>
+    <!-- Login Container -->
+    <div id="login-container" class="login-wrapper">
+        <div class="login-box">
+            <div class="brand" style="justify-content: center; margin-bottom: 2rem;">
+                <img src="./assets/img/logo.svg" alt="PMO Logo" class="logo-icon">
+                <h1>PMO Suite</h1>
+            </div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label class="form-label">Correo Electrónico</label>
+                    <input type="email" id="login-email" class="form-input" required placeholder="admin@pmo.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Contraseña</label>
+                    <input type="password" id="login-password" class="form-input" required placeholder="••••••••">
+                </div>
+                <button type="submit" class="btn-primary" style="width: 100%; margin-top: 1rem;">Iniciar Sesión</button>
+            </form>
+            <div style="text-align: center; margin-top: 1rem;">
+                <a href="#" id="forgot-password" style="color: var(--secondary); font-size: 0.9rem; text-decoration: none;">¿Olvidaste tu contraseña?</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container hidden" id="main-app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <img src="./assets/img/logo.svg" alt="PMO Logo" class="logo-icon">
+                <h1>PMO Suite</h1>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-btn active" data-view="dashboard">
+                    <span class="icon">📊</span> Dashboard Proyectos
+                </button>
+                <button class="nav-btn" data-view="projects">
+                    <span class="icon">📁</span> Proyectos
+                </button>
+                <button class="nav-btn" data-view="resources">
+                    <span class="icon">👥</span> Profesionales
+                </button>
+
+                <button class="nav-btn" data-view="entry">
+                    <span class="icon">📝</span> Cierre Mensual
+                </button>
+            </nav>
+
+            <div class="user-profile">
+                <div class="avatar" id="user-avatar-initials">PM</div>
+                <div class="info">
+                    <span class="name" id="user-display-name">PMO Admin</span>
+                    <span class="role" id="user-display-role">Administrador</span>
+                </div>
+            </div>
+            
+            <button id="btn-logout" class="btn-secondary" style="margin-top: auto; width: 100%;">Cerrar Sesión</button>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <h2 id="page-title">Dashboard Ejecutivo</h2>
+                <div class="actions">
+                    <span id="current-date"></span>
+
+                </div>
+            </header>
+
+            <div id="content-area">
+                <!-- Views will be injected here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals or Overlays -->
+    <div id="modal-overlay" class="hidden"></div>
+    <div id="modal-container" class="hidden"></div>
+
+    <!-- Scripts -->
+    <script src="./src/bundle.js?v=2"></script>
+</body>
+
+</html>
