@@ -1,6 +1,6 @@
 // src/services/apiService.js
 
-const API_BASE_URL = 'http://localhost:3000/api'; // Make this configurable via env if needed
+const API_BASE_URL = '/api';
 
 // Helper to handle responses
 const handleResponse = async (response) => {
