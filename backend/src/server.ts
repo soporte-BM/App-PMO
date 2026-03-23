@@ -27,14 +27,20 @@ app.use('/api/resources', resourceRoutes);
 app.use('/api/rates', rateRoutes);
 app.use('/api/closures', closureRoutes);
 
+import path from "path";
+
 // Health Check
-import { Request, Response } from "express";
-// ...
 app.get("/health", (req: Request, res: Response) => {
     res.status(200).json({ ok: true });
 });
 
+// Serve frontend static files
+const frontendPath = path.join(__dirname, '../../');
+app.use(express.static(frontendPath));
 
+app.get('*', (req: Request, res: Response) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+});
 // Start Server
 const startServer = async () => {
     try {
