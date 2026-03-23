@@ -383,12 +383,12 @@ export async function renderProjects(container) {
         });
     };
 
-    const handleExcelUpload = (e) => {
+    const handleExcelUpload = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (evt) => {
+        reader.onload = async (evt) => {
             try {
                 const bstr = evt.target.result;
                 const wb = XLSX.read(bstr, { type: 'binary' });

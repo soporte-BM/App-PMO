@@ -91,12 +91,12 @@ export async function renderResources(container) {
                 fileInput.click();
             });
 
-            fileInput.addEventListener('change', (e) => {
+            fileInput.addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
 
                 const reader = new FileReader();
-                reader.onload = function(evt) {
+                reader.onload = async function(evt) {
                     try {
                         const data = evt.target.result;
                         // Assuming XLSX is available in global scope (via index.html)
