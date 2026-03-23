@@ -1,190 +1,131 @@
-import { parsePeriodToMmmYy } from '../utils/format.js';
-
-const STORAGE_KEY = 'pmo_app_data_v1';
-const PROJECT_STORAGE_KEY = 'pmo_projects_v1';
-const PRO_STORAGE_KEY = 'pmo_professionals_v1';
-
-const MOCK_DATA = [
-    {
-        id: '1',
-        project: 'Transformación Digital Banco X',
-        month: '2023-10',
-        revenue: 45000,
-        professionals: [
-            { name: 'Juan P.', hours: 160, rate: 80 },
-            { name: 'Ana M.', hours: 150, rate: 90 }
-        ],
-        thirdPartyCosts: 2000
-    },
-    {
-        id: '2',
-        project: 'Migración SAP Retail Y',
-        month: '2023-10',
-        revenue: 80000,
-        professionals: [
-            { name: 'Carlos S.', hours: 170, rate: 100 },
-            { name: 'Elena R.', hours: 160, rate: 110 },
-            { name: 'Junior 1', hours: 160, rate: 40 }
-        ],
-        thirdPartyCosts: 5000
-    },
-    {
-        id: '3',
-        project: 'Asesoría Agile Telco Z',
-        month: '2023-10',
-        revenue: 12000,
-        professionals: [
-            { name: 'Coach 1', hours: 100, rate: 110 }
-        ],
-        thirdPartyCosts: 0
-    }
-];
+/**
+ * StorageService — ahora un adaptador sobre ApiService.
+ * Mantiene la misma interfaz que antes (mismos métodos),
+ * pero todos devuelven Promises en vez de valores síncronos.
+ *
+ * Los componentes deben usar await o .then() al llamar a estos métodos.
+ */
+import { ApiService } from './apiService.js';
 
 export const StorageService = {
-    getAllEntries: () => {
-        const data = localStorage.getItem(STORAGE_KEY);
-        let entries = [];
-        if (!data) {
-            // Initialize with mock data for first run
-            entries = MOCK_DATA;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-        } else {
-            entries = JSON.parse(data);
-        }
-        
-        let needsSave = false;
-        entries = entries.map(e => {
-            const parsed = parsePeriodToMmmYy(e.month);
-            if (parsed && parsed !== e.month) {
-                e.month = parsed;
-                needsSave = true;
-            }
-            return e;
-        });
-        
-        if (needsSave) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-        }
-        
-        return entries;
+
+    // ── CLOSURES / ENTRIES ──────────────────────────────────────────────
+
+    getAllEntries: async () => {
+        return ApiService.getAllEntries();
     },
 
-    getEntriesByProject: (projectName) => {
-        const entries = StorageService.getAllEntries();
-        return entries.filter(e => e.project === projectName);
+    getEntriesByProject: async (projectName) => {
+        const all = await ApiService.getAllEntries();
+        return all.filter(e => e.project_name === projectName || e.project === projectName);
     },
 
-    saveEntry: (entry) => {
-        const entries = StorageService.getAllEntries();
-        const newEntry = { ...entry, id: `e_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` };
-        entries.push(newEntry);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-        return newEntry;
+    saveEntry: async (entry) => {
+        return ApiService.saveEntry(entry);
     },
 
-    updateEntry: (entryId, updatedData) => {
-        const entries = StorageService.getAllEntries();
-        const index = entries.findIndex(e => e.id === entryId);
-        if (index > -1) {
-            entries[index] = { ...entries[index], ...updatedData };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-        } else {
-            throw new Error('Registro no encontrado');
-        }
+    updateEntry: async (entryId, updatedData) => {
+        // El backend actualiza via POST /closures (upsert), no hay PATCH aún.
+        // Combinamos el id con los datos actualizados para reenviar.
+        return ApiService.saveEntry({ ...updatedData, id: entryId });
     },
 
-    getProjects: () => {
-        const data = localStorage.getItem(PROJECT_STORAGE_KEY);
-        if (!data) {
-            // Initialize from existing entries if any
-            const entries = StorageService.getAllEntries();
-            const uniqueProjects = [...new Set(entries.map(e => e.project))];
-            const initialProjects = uniqueProjects.map((name, index) => ({
-                id: `p_${Date.now()}_${index}`,
-                code: `PRJ-${String(index + 1).padStart(3, '0')}`,
-                name: name,
-                status: 'Activo'
+    // ── PROYECTOS ────────────────────────────────────────────────────────
+
+    getProjects: async () => {
+        const projects = await ApiService.getProjects();
+        // Normalizar al formato que espera el frontend
+        return projects.map(p => ({
+            id: p.id,
+            code: p.project_code,
+            name: p.name,
+            status: p.status === 'ACTIVE' ? 'Activo' : 'Inactivo'
+        }));
+    },
+
+    saveProject: async (project) => {
+        const payload = {
+            project_code: project.code,
+            name: project.name,
+            status: project.status === 'Activo' ? 'ACTIVE' : 'INACTIVE'
+        };
+        return ApiService.createProject(payload);
+    },
+
+    // ── PROFESIONALES / RECURSOS ─────────────────────────────────────────
+
+    getProfessionals: async (period) => {
+        if (!period) {
+            // Sin periodo, traemos todos los recursos activos sin tarifas
+            const resources = await ApiService.getResources();
+            return resources.map(r => ({
+                id: r.id,
+                name: r.resource_name,
+                role: r.role,
+                period: null,
+                direct_rate: null,
+                indirect_rate: null
             }));
-            localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(initialProjects));
-            return initialProjects;
         }
-        return JSON.parse(data);
+        // Con periodo, traemos recursos + sus tarifas para ese mes
+        const rates = await ApiService.getRates(period);
+        return rates.map(r => ({
+            id: r.resource_id,
+            name: r.resource_name,
+            period,
+            direct_rate: r.direct_rate,
+            indirect_rate: r.indirect_rate,
+            currency: r.currency
+        }));
     },
 
-    saveProject: (project) => {
-        const projects = StorageService.getProjects();
-        if (project.id) {
-            const index = projects.findIndex(p => p.id === project.id);
-            if (index > -1) {
-                projects[index] = project;
-            } else {
-                projects.push(project);
-            }
-        } else {
-            project.id = `p_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-            projects.push(project);
+    saveProfessional: async (pro) => {
+        // Si viene sin id => crear recurso nuevo
+        if (!pro.id) {
+            await ApiService.createResource({
+                resource_name: pro.name,
+                role: pro.role || 'Consultor'
+            });
         }
-        localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(projects));
-        return project;
+        // Si tiene tarifa, guardarla
+        if (pro.period && (pro.direct_rate != null || pro.indirect_rate != null)) {
+            await ApiService.saveRates(pro.period, [{
+                resourceName: pro.name,
+                directRate: pro.direct_rate || 0,
+                indirectRate: pro.indirect_rate || 0
+            }]);
+        }
     },
 
-    getProfessionals: () => {
-        const data = localStorage.getItem(PRO_STORAGE_KEY);
-        if (!data) return [];
-        
-        let pros = JSON.parse(data);
-        let needsSave = false;
-        pros = pros.map(p => {
-            const parsed = parsePeriodToMmmYy(p.period);
-            if (parsed && parsed !== p.period) {
-                p.period = parsed;
-                needsSave = true;
+    saveProfessionalsBulk: async (prosList) => {
+        if (!prosList.length) return;
+        const period = prosList[0].period;
+        // Crear recursos nuevos que no existan
+        for (const pro of prosList) {
+            if (!pro.id) {
+                try {
+                    await ApiService.createResource({
+                        resource_name: pro.name,
+                        role: pro.role || 'Consultor'
+                    });
+                } catch (e) {
+                    // Si ya existe en BD, ignorar el error de duplicado
+                    console.warn(`Recurso ${pro.name} ya existe, actualizando tarifa.`);
+                }
             }
-            return p;
-        });
-        
-        if (needsSave) {
-            localStorage.setItem(PRO_STORAGE_KEY, JSON.stringify(pros));
         }
-        
-        return pros;
-    },
-
-    saveProfessional: (pro) => {
-        const pros = StorageService.getProfessionals();
-        if (pro.id) {
-            const index = pros.findIndex(p => p.id === pro.id);
-            if (index > -1) {
-                pros[index] = pro;
-            } else {
-                pros.push(pro);
-            }
-        } else {
-            pros.push({ ...pro, id: `pro_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` });
+        // Guardar todas las tarifas del periodo en bloque
+        if (period) {
+            const rates = prosList.map(pro => ({
+                resourceName: pro.name,
+                directRate: pro.direct_rate || 0,
+                indirectRate: pro.indirect_rate || 0
+            }));
+            await ApiService.saveRates(period, rates);
         }
-        localStorage.setItem(PRO_STORAGE_KEY, JSON.stringify(pros));
-    },
-
-    saveProfessionalsBulk: (prosList) => {
-        const currentPros = StorageService.getProfessionals();
-        const updatedPros = [...currentPros];
-        
-        prosList.forEach(newPro => {
-            // Uniqueness is defined by Name + Period combination
-            const existingIndex = updatedPros.findIndex(p => p.name === newPro.name && p.period === newPro.period);
-            if (existingIndex > -1) {
-                updatedPros[existingIndex] = { ...updatedPros[existingIndex], ...newPro };
-            } else {
-                updatedPros.push({ ...newPro, id: `pro_${Date.now()}_${Math.random().toString(36).substr(2, 5)}` });
-            }
-        });
-        
-        localStorage.setItem(PRO_STORAGE_KEY, JSON.stringify(updatedPros));
     },
 
     clearData: () => {
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(PROJECT_STORAGE_KEY);
-        localStorage.removeItem(PRO_STORAGE_KEY);
+        console.warn('clearData no está soportado en modo API.');
     }
 };

@@ -1,6 +1,6 @@
 # PMO App Backend
 
-Node.js + Express + TypeScript backend connected to Azure SQL Database.
+Node.js + Express + TypeScript backend connected to MongoDB Atlas.
 
 ## Setup
 
@@ -14,18 +14,10 @@ Node.js + Express + TypeScript backend connected to Azure SQL Database.
     Create a `.env` file in the `backend` directory (copy from `.env.example`):
     ```ini
     PORT=3000
-    SQL_SERVER=your-server.database.windows.net
-    SQL_DATABASE=your-db
-    SQL_USER=your-user
-    SQL_PASSWORD=your-password
+    MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/pmobm?retryWrites=true&w=majority
     ```
 
-3.  **Database Setup**
-    Run the SQL scripts located in `backend/db/` on your Azure SQL Database:
-    - `01_schema.sql`: Creates tables.
-    - `02_seed.sql`: Inserts initial data.
-
-4.  **Run Locally**
+3.  **Run Locally**
     ```bash
     npm run dev
     ```

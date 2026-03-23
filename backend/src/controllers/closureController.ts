@@ -2,6 +2,15 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { ClosureRepository } from '../repositories/closureRepository';
 
+export const getAllClosures = async (req: AuthRequest, res: Response) => {
+    try {
+        const closures = await ClosureRepository.getAll();
+        res.json(closures);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching closures', error });
+    }
+};
+
 export const getClosure = async (req: AuthRequest, res: Response) => {
     try {
         const { projectCode, period } = req.query;

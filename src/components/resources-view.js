@@ -1,8 +1,8 @@
 import { StorageService } from '../services/storage.js';
 import { formatCurrency, formatPeriod, parsePeriodToMmmYy } from '../utils/format.js';
 
-export function renderResources(container) {
-    let professionals = StorageService.getProfessionals();
+export async function renderResources(container) {
+    let professionals = await StorageService.getProfessionals();
 
     const render = () => {
         const html = `
@@ -70,14 +70,14 @@ export function renderResources(container) {
                 const indirectRate = prompt('Tarifa Indirecta (CLP):');
                 if (!indirectRate || isNaN(indirectRate)) return;
 
-                StorageService.saveProfessional({
+                await StorageService.saveProfessional({
                     name: name.trim(),
                     period: period.trim(),
                     directRate: Number(directRate),
                     indirectRate: Number(indirectRate)
                 });
                 
-                professionals = StorageService.getProfessionals();
+                professionals = await StorageService.getProfessionals();
                 render();
             });
         }
@@ -128,9 +128,9 @@ export function renderResources(container) {
                             }
                             
                             if (newPros.length > 0) {
-                                StorageService.saveProfessionalsBulk(newPros);
+                                await StorageService.saveProfessionalsBulk(newPros);
                                 alert(`Se cargaron/actualizaron ${newPros.length} profesionales exitosamente.`);
-                                professionals = StorageService.getProfessionals();
+                                professionals = await StorageService.getProfessionals();
                                 render();
                             } else {
                                 alert('No se encontraron filas válidas en el Excel. Formato esperado: Nombre, Periodo, Tarifa Directa, Tarifa Indirecta.');

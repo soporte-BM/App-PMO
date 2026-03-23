@@ -1,8 +1,5 @@
-// src/services/apiService.js
-
 const API_BASE_URL = '/api';
 
-// Helper to handle responses
 const handleResponse = async (response) => {
     if (!response.ok) {
         const error = await response.json().catch(() => ({ message: 'Unknown error' }));
@@ -11,27 +8,45 @@ const handleResponse = async (response) => {
     return response.json();
 };
 
-// Headers with simulated auth
 const getHeaders = () => ({
     'Content-Type': 'application/json',
-    'x-user-role': 'ADMIN', // Simulate Admin for now, change as needed
+    'x-user-role': 'ADMIN',
     'x-user-name': 'DevFrontend'
 });
 
 export const ApiService = {
-    // Projects
+
+    // ── PROJECTS ────────────────────────────────────────────────────────
     getProjects: async () => {
         const response = await fetch(`${API_BASE_URL}/projects`, { headers: getHeaders() });
         return handleResponse(response);
     },
 
-    // Resources
+    createProject: async (project) => {
+        const response = await fetch(`${API_BASE_URL}/projects`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(project)
+        });
+        return handleResponse(response);
+    },
+
+    // ── RESOURCES ───────────────────────────────────────────────────────
     getResources: async () => {
         const response = await fetch(`${API_BASE_URL}/resources`, { headers: getHeaders() });
         return handleResponse(response);
     },
 
-    // Rates
+    createResource: async (resource) => {
+        const response = await fetch(`${API_BASE_URL}/resources`, {
+            method: 'POST',
+            headers: getHeaders(),
+            body: JSON.stringify(resource)
+        });
+        return handleResponse(response);
+    },
+
+    // ── RATES ────────────────────────────────────────────────────────────
     getRates: async (period) => {
         const response = await fetch(`${API_BASE_URL}/rates?period=${period}`, { headers: getHeaders() });
         return handleResponse(response);
@@ -46,27 +61,10 @@ export const ApiService = {
         return handleResponse(response);
     },
 
-    // Closures (Replacing StorageService logic)
-    getAllEntries: async (filters = {}) => {
-        // This maps to getClosure logic. 
-        // If the UI expects a list of all closures, we might need a new endpoint GET /closures/all or filtering by project/period loop.
-        // The original StorageService returned everything.
-        // For strict compatibility with the Prompt's "GET /closures?projectCode=...&period=..." design, 
-        // we might need to know what the UI expects.
-        // Assuming the UI calls this to load a specific view or list.
-        // If the UI needs a list, we should probably implement a list endpoint.
-        // For now, let's assume the UI passes filters projectCode and period, or we return an empty list if not valid.
-
-        if (filters.projectCode && filters.month) {
-            try {
-                const data = await ApiService.getClosure(filters.projectCode, filters.month);
-                return [data]; // Return as array to mimic getAllEntries behavior for a single match
-            } catch (e) {
-                if (e.message.includes('not found')) return [];
-                throw e;
-            }
-        }
-        return []; // TODO: Implement getAllClosures on backend if needed
+    // ── CLOSURES ─────────────────────────────────────────────────────────
+    getAllEntries: async () => {
+        const response = await fetch(`${API_BASE_URL}/closures/all`, { headers: getHeaders() });
+        return handleResponse(response);
     },
 
     getClosure: async (projectCode, period) => {
@@ -75,27 +73,16 @@ export const ApiService = {
     },
 
     saveEntry: async (entry) => {
-        // storage.js entry structure: { project, month, revenue, professionals, thirdPartyCosts ... }
-        // We need to map it to backend expectation: { projectCode, period, revenue, thirdPartyCosts, resources }
-
-        // entry.project might be the name or code? In storage.js MOCK_DATA it was Name like "Transformación..."
-        // The backend expects projectCode. We might need a mapping or ensure frontend sends code.
-        // For this task, assuming we pass what we have. If entry.project is name, we might fail on backend lookup 
-        // unless we fix frontend to send code. 
-        // Let's assume entry.projectCode exists or we pass entry.project as code if it matches.
-
         const payload = {
-            projectCode: entry.projectCode || entry.project, // Fallback, but backend needs Code
-            period: entry.month,
+            projectCode: entry.projectCode || entry.project_code || entry.project,
+            period: entry.period || entry.month,
             revenue: entry.revenue,
-            thirdPartyCosts: entry.thirdPartyCosts,
-            resources: entry.professionals.map(p => ({
-                resourceName: p.name,
+            thirdPartyCosts: entry.thirdPartyCosts || entry.third_party_costs || 0,
+            resources: (entry.professionals || entry.resources || []).map(p => ({
+                resourceName: p.name || p.resource_name,
                 hours: p.hours
-                // rate is not sent, backend looks it up.
             }))
         };
-
         const response = await fetch(`${API_BASE_URL}/closures`, {
             method: 'POST',
             headers: getHeaders(),
@@ -121,6 +108,6 @@ export const ApiService = {
     },
 
     clearData: () => {
-        console.warn('clearData not supported in API mode');
+        console.warn('clearData no está soportado en modo API.');
     }
 };

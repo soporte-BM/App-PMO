@@ -1,9 +1,9 @@
 import { StorageService } from '../services/storage.js';
 import { parsePeriodToMmmYy, formatCurrency } from '../utils/format.js';
 
-export function renderEntryForm(container) {
-    const activeProjects = StorageService.getProjects().filter(p => p.status === 'Activo');
-    const allProfessionals = StorageService.getProfessionals();
+export async function renderEntryForm(container) {
+    const activeProjects = (await StorageService.getProjects()).filter(p => p.status === 'Activo');
+    const allProfessionals = await StorageService.getProfessionals();
     const uniqueProNames = [...new Set(allProfessionals.map(p => p.name))].sort();
 
     const html = `
@@ -161,7 +161,7 @@ export function renderEntryForm(container) {
             professionals
         };
 
-        StorageService.saveEntry(entry);
+        await StorageService.saveEntry(entry);
         alert('Proyecto guardado exitosamente');
         window.location.reload(); // Simple reload to go back to dashboard
     });

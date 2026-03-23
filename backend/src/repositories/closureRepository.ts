@@ -21,6 +21,54 @@ export interface Closure {
 }
 
 export const ClosureRepository = {
+    getAll: async () => {
+        const closures = await ClosureModel.find()
+            .populate('project')
+            .populate('resources.resource')
+            .lean();
+
+        return closures.map((closure: any) => {
+            let laborDirect = 0;
+            let laborIndirect = 0;
+            const resources = closure.resources.map((r: any) => {
+                const h = r.hours;
+                const dRate = r.rate_snapshot_direct || 0;
+                const iRate = r.rate_snapshot_indirect || 0;
+                laborDirect += h * dRate;
+                laborIndirect += h * iRate;
+                return {
+                    resource_id: r.resource._id.toString(),
+                    resource_name: r.resource.resource_name,
+                    role: r.resource.role,
+                    hours: h,
+                    rate_snapshot_direct: dRate,
+                    rate_snapshot_indirect: iRate
+                };
+            });
+            const totalCost = laborDirect + laborIndirect + closure.third_party_costs;
+            const margin = closure.revenue - totalCost;
+            const profitability = closure.revenue > 0 ? (margin / closure.revenue) * 100 : 0;
+            return {
+                id: closure._id.toString(),
+                project_id: closure.project._id.toString(),
+                project_code: closure.project.project_code,
+                project_name: closure.project.name,
+                period: closure.period,
+                status: closure.status,
+                revenue: closure.revenue,
+                third_party_costs: closure.third_party_costs,
+                resources,
+                kpis: {
+                    laborDirectCost: laborDirect,
+                    laborIndirectCost: laborIndirect,
+                    totalCost,
+                    margin,
+                    profitabilityPct: parseFloat(profitability.toFixed(2))
+                }
+            };
+        });
+    },
+
     getByProjectAndPeriod: async (projectCode: string, period: string) => {
         const project = await ProjectModel.findOne({ project_code: projectCode }).lean();
         if (!project) return null;

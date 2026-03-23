@@ -2,14 +2,14 @@ import { StorageService } from '../services/storage.js';
 import { AnalyticsService } from '../services/analytics.js';
 import { formatCurrency, formatPercent, formatPeriod } from '../utils/format.js';
 
-export function renderDashboard(container, options = {}) {
+export async function renderDashboard(container, options = {}) {
     const { 
         projectFilter = 'all', 
         calcMode = 'accumulated', // 'accumulated' or 'punctual'
         showAllProjects = false 
     } = options;
 
-    const allProjects = StorageService.getProjects();
+    const allProjects = await StorageService.getProjects();
     const activeProjectNames = new Set(allProjects.filter(p => p.status === 'Activo').map(p => p.name));
     
     const projectCodeMap = new Map();
@@ -24,7 +24,7 @@ export function renderDashboard(container, options = {}) {
                (entry.professionals[0].name === 'Carga Histórica' || entry.professionals[0].name === 'Recurso Importado');
     };
 
-    let rawEntries = StorageService.getAllEntries();
+    let rawEntries = await StorageService.getAllEntries();
 
     // 1. Filter by Project Status (Active vs All)
     let filteredAllEntries = [...rawEntries];

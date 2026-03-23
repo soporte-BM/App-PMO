@@ -2,9 +2,9 @@ import { StorageService } from '../services/storage.js';
 import { AnalyticsService } from '../services/analytics.js';
 import { formatPercent, parsePeriodToMmmYy } from '../utils/format.js';
 
-export function renderProjects(container) {
-    let projects = StorageService.getProjects();
-    const entries = StorageService.getAllEntries();
+export async function renderProjects(container) {
+    let projects = await StorageService.getProjects();
+    const entries = await StorageService.getAllEntries();
     
     // Sort projects by Proyecto_Codigo by default
     projects.sort((a, b) => a.code.localeCompare(b.code));
@@ -120,8 +120,8 @@ export function renderProjects(container) {
                         name: name.trim(),
                         status: 'Activo'
                     };
-                    StorageService.saveProject(newProject);
-                    projects = StorageService.getProjects(); // Refresh data
+                    await StorageService.saveProject(newProject);
+                    projects = await StorageService.getProjects(); // Refresh data
                     render();
                 }
             });
@@ -136,7 +136,7 @@ export function renderProjects(container) {
                 if (project) {
                     project.status = newStatus;
                     try {
-                        StorageService.saveProject(project);
+                        await StorageService.saveProject(project);
                     } catch (error) {
                         alert('Error al guardar el estado: ' + error.message);
                         projects = StorageService.getProjects();
@@ -494,7 +494,7 @@ export function renderProjects(container) {
                             manager: rowManager,
                             status: rowStatus
                         };
-                        StorageService.saveProject(project);
+                        await StorageService.saveProject(project);
                         currentProjects.push(project); 
                     }
 
