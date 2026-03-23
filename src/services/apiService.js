@@ -10,7 +10,7 @@ const handleResponse = async (response) => {
 
 const getHeaders = () => ({
     'Content-Type': 'application/json',
-    'x-user-role': 'ADMIN',
+    'x-user-role': 'Admin',
     'x-user-name': 'DevFrontend'
 });
 
