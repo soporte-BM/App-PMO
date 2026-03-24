@@ -1,5 +1,5 @@
 import { StorageService } from '../services/storage.js';
-import { formatCurrency, formatPeriod, parsePeriodToMmmYy } from '../utils/format.js';
+import { formatCurrency, formatPeriod, parsePeriodToMmmYy, periodToApiFormat } from '../utils/format.js';
 
 export async function renderResources(container) {
     // Obtener periodo actual en formato YYYY-MM-01 para traer tarifas
@@ -75,7 +75,7 @@ export async function renderResources(container) {
 
                 await StorageService.saveProfessional({
                     name: name.trim(),
-                    period: period.trim(),
+                    period: periodToApiFormat(parsedPeriod),
                     directRate: Number(directRate),
                     indirectRate: Number(indirectRate)
                 });

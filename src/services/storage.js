@@ -1,3 +1,5 @@
+import { periodToApiFormat } from '../utils/format.js';
+
 /**
  * StorageService — ahora un adaptador sobre ApiService.
  * Mantiene la misma interfaz que antes (mismos métodos),
@@ -89,7 +91,8 @@ export const StorageService = {
         }
         // Si tiene tarifa, guardarla
         if (pro.period && (pro.directRate != null || pro.indirectRate != null)) {
-            await ApiService.saveRates(pro.period, [{
+            const apiPeriod = periodToApiFormat(pro.period);
+            await ApiService.saveRates(apiPeriod, [{
                 resourceName: pro.name,
                 directRate: pro.directRate || 0,
                 indirectRate: pro.indirectRate || 0
@@ -116,12 +119,13 @@ export const StorageService = {
         }
         // Guardar todas las tarifas del periodo en bloque
         if (period) {
+            const apiPeriod = periodToApiFormat(period);
             const rates = prosList.map(pro => ({
                 resourceName: pro.name,
                 directRate: pro.directRate || 0,
                 indirectRate: pro.indirectRate || 0
             }));
-            await ApiService.saveRates(period, rates);
+            await ApiService.saveRates(apiPeriod, rates);
         }
     },
 

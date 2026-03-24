@@ -85,3 +85,23 @@ export const formatPeriod = (period) => {
     const parsed = parsePeriodToMmmYy(period);
     return parsed ? parsed : period;
 };
+
+// Convierte periodo en formato mmm-yy (ej: ene-25) a YYYY-MM-01 para la API
+const MONTH_TO_NUM = {
+    ene: '01', feb: '02', mar: '03', abr: '04',
+    may: '05', jun: '06', jul: '07', ago: '08',
+    sep: '09', oct: '10', nov: '11', dic: '12'
+};
+
+export const periodToApiFormat = (period) => {
+    if (!period) return null;
+    // Si ya viene en formato YYYY-MM-01, devolverlo tal cual
+    if (/^\d{4}-\d{2}-\d{2}$/.test(period)) return period;
+    // Convertir mmm-yy a YYYY-MM-01
+    const match = String(period).trim().toLowerCase().match(/^([a-z]+)-(\d{2})$/);
+    if (!match) return null;
+    const month = MONTH_TO_NUM[match[1]];
+    if (!month) return null;
+    const year = `20${match[2]}`;
+    return `${year}-${month}-01`;
+};
