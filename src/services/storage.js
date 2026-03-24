@@ -82,14 +82,19 @@ export const StorageService = {
     },
 
     saveProfessional: async (pro) => {
-        // Si viene sin id => crear recurso nuevo
+        // Crear recurso si no existe (ignorar error si ya existe)
         if (!pro.id) {
-            await ApiService.createResource({
-                resource_name: pro.name,
-                role: pro.role || 'Consultor'
-            });
+            try {
+                await ApiService.createResource({
+                    resource_name: pro.name,
+                    role: pro.role || 'Consultor'
+                });
+            } catch (e) {
+                // El recurso ya existe en BD — continuar para actualizar tarifa
+                console.warn(`Recurso ${pro.name} ya existe, actualizando tarifa.`);
+            }
         }
-        // Si tiene tarifa, guardarla
+        // Guardar tarifa si viene con periodo y valores
         if (pro.period && (pro.directRate != null || pro.indirectRate != null)) {
             const apiPeriod = periodToApiFormat(pro.period);
             await ApiService.saveRates(apiPeriod, [{
@@ -98,6 +103,7 @@ export const StorageService = {
                 indirectRate: pro.indirectRate || 0
             }]);
         }
+    },
     },
 
     saveProfessionalsBulk: async (prosList) => {

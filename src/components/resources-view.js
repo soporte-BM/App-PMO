@@ -122,7 +122,7 @@ export async function renderResources(container) {
                                     if (parsedPeriod) {
                                         newPros.push({
                                             name: String(row[0]).trim(),
-                                            period: parsedPeriod,
+                                            period: periodToApiFormat(parsedPeriod),
                                             directRate: Number(row[2]) || 0,
                                             indirectRate: Number(row[3]) || 0
                                         });
