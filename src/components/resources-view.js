@@ -2,7 +2,10 @@ import { StorageService } from '../services/storage.js';
 import { formatCurrency, formatPeriod, parsePeriodToMmmYy } from '../utils/format.js';
 
 export async function renderResources(container) {
-    let professionals = await StorageService.getProfessionals();
+    // Obtener periodo actual en formato YYYY-MM-01 para traer tarifas
+    const now = new Date();
+    const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    let professionals = await StorageService.getProfessionals(currentPeriod);
 
     const render = () => {
         const html = `
@@ -77,7 +80,7 @@ export async function renderResources(container) {
                     indirectRate: Number(indirectRate)
                 });
                 
-                professionals = await StorageService.getProfessionals();
+                professionals = await StorageService.getProfessionals(currentPeriod);
                 render();
             });
         }
@@ -130,7 +133,7 @@ export async function renderResources(container) {
                             if (newPros.length > 0) {
                                 await StorageService.saveProfessionalsBulk(newPros);
                                 alert(`Se cargaron/actualizaron ${newPros.length} profesionales exitosamente.`);
-                                professionals = await StorageService.getProfessionals();
+                                professionals = await StorageService.getProfessionals(currentPeriod);
                                 render();
                             } else {
                                 alert('No se encontraron filas válidas en el Excel. Formato esperado: Nombre, Periodo, Tarifa Directa, Tarifa Indirecta.');

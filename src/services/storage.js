@@ -63,8 +63,8 @@ export const StorageService = {
                 name: r.resource_name,
                 role: r.role,
                 period: null,
-                direct_rate: null,
-                indirect_rate: null
+                directRate: null,
+                indirectRate: null
             }));
         }
         // Con periodo, traemos recursos + sus tarifas para ese mes
@@ -73,8 +73,8 @@ export const StorageService = {
             id: r.resource_id,
             name: r.resource_name,
             period,
-            direct_rate: r.direct_rate,
-            indirect_rate: r.indirect_rate,
+            directRate: r.direct_rate,
+            indirectRate: r.indirect_rate,
             currency: r.currency
         }));
     },
@@ -88,11 +88,11 @@ export const StorageService = {
             });
         }
         // Si tiene tarifa, guardarla
-        if (pro.period && (pro.direct_rate != null || pro.indirect_rate != null)) {
+        if (pro.period && (pro.directRate != null || pro.indirectRate != null)) {
             await ApiService.saveRates(pro.period, [{
                 resourceName: pro.name,
-                directRate: pro.direct_rate || 0,
-                indirectRate: pro.indirect_rate || 0
+                directRate: pro.directRate || 0,
+                indirectRate: pro.indirectRate || 0
             }]);
         }
     },
@@ -118,8 +118,8 @@ export const StorageService = {
         if (period) {
             const rates = prosList.map(pro => ({
                 resourceName: pro.name,
-                directRate: pro.direct_rate || 0,
-                indirectRate: pro.indirect_rate || 0
+                directRate: pro.directRate || 0,
+                indirectRate: pro.indirectRate || 0
             }));
             await ApiService.saveRates(period, rates);
         }
