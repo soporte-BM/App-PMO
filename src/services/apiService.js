@@ -1,5 +1,8 @@
 import { toSqlDate, formatPeriod } from '../utils/format.js';
-const API_BASE_URL = 'http://localhost:3000/api'; // Make this configurable via env if needed
+
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE_URL = isLocalhost ? 'http://localhost:3000/api' : '/api';
+
 
 // Helper to handle responses
 const handleResponse = async (response) => {
