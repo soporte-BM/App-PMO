@@ -1,9 +1,10 @@
-import { StorageService } from '../services/storage.js';
+import { ApiService } from '../services/apiService.js';
 import { parsePeriodToMmmYy, formatCurrency } from '../utils/format.js';
 
 export async function renderEntryForm(container) {
-    const activeProjects = (await StorageService.getProjects()).filter(p => p.status === 'Activo');
-    const allProfessionals = await StorageService.getProfessionals();
+    const projects = await ApiService.getProjects();
+    const activeProjects = projects.filter(p => p.status === 'Activo' || p.status === 'ACTIVE');
+    const allProfessionals = await ApiService.getAllRates();
     const uniqueProNames = [...new Set(allProfessionals.map(p => p.name))].sort();
 
     const html = `
@@ -15,12 +16,13 @@ export async function renderEntryForm(container) {
                         <label class="form-label">Proyecto</label>
                         <select name="project" class="form-input" required>
                             <option value="" disabled selected>Seleccione un proyecto activo...</option>
-                            ${activeProjects.map(p => `<option value="${p.name}">${p.name} (${p.code})</option>`).join('')}
+                            ${activeProjects.map(p => `<option value="${p.code}">${p.name} (${p.code})</option>`).join('')}
                         </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Periodo (Mes/Año)</label>
-                        <input type="month" id="entry-month" name="month" class="form-input" required>
+                        <input type="text" id="entry-month" class="form-input" placeholder="Seleccione un mes..." required style="cursor: pointer; background-color: #fff;">
+                        <input type="hidden" id="entry-month-hidden" name="month">
                     </div>
                 </div>
 
@@ -68,11 +70,29 @@ export async function renderEntryForm(container) {
     const addBtn = document.getElementById('add-pro-btn');
     const form = document.getElementById('projectForm');
     const monthInput = document.getElementById('entry-month');
+    const monthHidden = document.getElementById('entry-month-hidden');
+
+    monthInput.addEventListener('focus', () => {
+        monthInput.type = 'month';
+        monthInput.value = monthHidden.value;
+        if (typeof monthInput.showPicker === 'function') {
+            try { monthInput.showPicker(); } catch (e) {}
+        }
+    });
+
+    monthInput.addEventListener('blur', () => {
+        monthInput.type = 'text';
+        if (monthHidden.value) {
+            monthInput.value = parsePeriodToMmmYy(monthHidden.value) || '';
+        } else {
+            monthInput.value = '';
+        }
+    });
 
     // Recalculates rate for a specific row
     const updateRowRate = (row) => {
-        const rawMonth = monthInput.value; // format: 'YYYY-MM'
-        const month = parsePeriodToMmmYy(rawMonth);
+        const rawMonth = monthHidden.value; // format: 'YYYY-MM'
+        const month = rawMonth ? parsePeriodToMmmYy(rawMonth) : '';
         const nameSelect = row.querySelector('[name="pro_name"]');
         const rateDisplayInput = row.querySelector('[name="pro_rate_display"]');
         const rateInput = row.querySelector('[name="pro_rate"]');
@@ -99,7 +119,8 @@ export async function renderEntryForm(container) {
     };
 
     // Recalculate all rows when global month changes
-    monthInput.addEventListener('change', () => {
+    monthInput.addEventListener('change', (e) => {
+        monthHidden.value = e.target.value;
         const rows = list.querySelectorAll('.list-item');
         rows.forEach(updateRowRate);
     });
@@ -132,7 +153,7 @@ export async function renderEntryForm(container) {
 
     addBtn.addEventListener('click', addProfessionalRow);
 
-    form.addEventListener('submit', async (e) => {
+    form.addEventListener('submit', (e) => {
         e.preventDefault();
         const formData = new FormData(form);
         const professionals = [];
@@ -161,8 +182,11 @@ export async function renderEntryForm(container) {
             professionals
         };
 
-        await StorageService.saveEntry(entry);
-        alert('Proyecto guardado exitosamente');
-        window.location.reload(); // Simple reload to go back to dashboard
+        ApiService.saveEntry(entry).then(() => {
+            alert('Proyecto guardado exitosamente');
+            window.location.reload(); // Simple reload to go back to dashboard
+        }).catch((err) => {
+            alert('Error al guardar: ' + err.message);
+        });
     });
 }

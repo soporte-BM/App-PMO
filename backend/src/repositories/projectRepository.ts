@@ -1,7 +1,8 @@
-import { ProjectModel, IProject } from '../models/Project';
+import sql from 'mssql';
+import { getPool } from '../db';
 
 export interface Project {
-    id?: string;
+    id?: number;
     project_code: string;
     name: string;
     status: 'ACTIVE' | 'INACTIVE';
@@ -9,21 +10,21 @@ export interface Project {
 
 export const ProjectRepository = {
     getAll: async (): Promise<Project[]> => {
-        const projects = await ProjectModel.find().lean();
-        return projects.map((p: any) => {
-            p.id = p._id.toString();
-            delete p._id;
-            delete p.__v;
-            return p;
-        });
+        const pool = getPool();
+        const result = await pool.request().query('SELECT * FROM Projects');
+        return result.recordset;
     },
 
     create: async (project: Project): Promise<Project> => {
-        const newProject = await ProjectModel.create(project);
-        const p: any = newProject.toObject();
-        p.id = p._id.toString();
-        delete p._id;
-        delete p.__v;
-        return p;
+        const pool = getPool();
+        const result = await pool.request()
+            .input('project_code', sql.VarChar, project.project_code)
+            .input('name', sql.VarChar, project.name)
+            .query(`
+        INSERT INTO Projects (project_code, name)
+        OUTPUT INSERTED.*
+        VALUES (@project_code, @name)
+      `);
+        return result.recordset[0];
     },
 };

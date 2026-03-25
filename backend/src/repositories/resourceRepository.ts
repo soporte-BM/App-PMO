@@ -1,7 +1,8 @@
-import { ResourceModel, IResource } from '../models/Resource';
+import sql from 'mssql';
+import { getPool } from '../db';
 
 export interface Resource {
-    id?: string;
+    id?: number;
     resource_name: string;
     role: string;
     status: 'ACTIVE' | 'INACTIVE';
@@ -9,21 +10,22 @@ export interface Resource {
 
 export const ResourceRepository = {
     getAll: async (): Promise<Resource[]> => {
-        const resources = await ResourceModel.find().lean();
-        return resources.map((r: any) => {
-            r.id = r._id.toString();
-            delete r._id;
-            delete r.__v;
-            return r;
-        });
+        const pool = getPool();
+        const result = await pool.request().query('SELECT * FROM Resources');
+        return result.recordset;
     },
 
     create: async (resource: Resource): Promise<Resource> => {
-        const newResource = await ResourceModel.create(resource);
-        const r: any = newResource.toObject();
-        r.id = r._id.toString();
-        delete r._id;
-        delete r.__v;
-        return r;
+        const pool = getPool();
+        const result = await pool.request()
+            .input('resource_name', sql.VarChar, resource.resource_name)
+            .input('role', sql.VarChar, resource.role)
+            .input('status', sql.VarChar, resource.status || 'ACTIVE')
+            .query(`
+        INSERT INTO Resources (resource_name, role, status)
+        OUTPUT INSERTED.*
+        VALUES (@resource_name, @role, @status)
+      `);
+        return result.recordset[0];
     },
 };

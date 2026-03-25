@@ -2,20 +2,12 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { ClosureRepository } from '../repositories/closureRepository';
 
-export const getAllClosures = async (req: AuthRequest, res: Response) => {
-    try {
-        const closures = await ClosureRepository.getAll();
-        res.json(closures);
-    } catch (error) {
-        res.status(500).json({ message: 'Error fetching closures', error });
-    }
-};
-
 export const getClosure = async (req: AuthRequest, res: Response) => {
     try {
         const { projectCode, period } = req.query;
         if (!projectCode || !period) {
-            return res.status(400).json({ message: 'projectCode and period are required' });
+            const closures = await ClosureRepository.getAllClosures();
+            return res.json(closures);
         }
         const closure = await ClosureRepository.getByProjectAndPeriod(projectCode as string, period as string);
         if (!closure) {
@@ -54,7 +46,7 @@ export const saveClosure = async (req: AuthRequest, res: Response) => {
 export const validateClosure = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
-        await ClosureRepository.setStatus(id as string, 'VALIDATED', req.user?.name || 'Unknown');
+        await ClosureRepository.setStatus(Number(id), 'VALIDATED', req.user?.name || 'Unknown');
         res.json({ message: 'Closure validated' });
     } catch (error) {
         res.status(500).json({ message: 'Error validating closure', error });
@@ -64,7 +56,7 @@ export const validateClosure = async (req: AuthRequest, res: Response) => {
 export const unvalidateClosure = async (req: AuthRequest, res: Response) => {
     try {
         const { id } = req.params;
-        await ClosureRepository.setStatus(id as string, 'DRAFT', req.user?.name || 'Unknown');
+        await ClosureRepository.setStatus(Number(id), 'DRAFT', req.user?.name || 'Unknown');
         res.json({ message: 'Closure unvalidated' });
     } catch (error) {
         res.status(500).json({ message: 'Error unvalidating closure', error });

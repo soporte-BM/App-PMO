@@ -19,7 +19,10 @@ export const createResource = async (req: AuthRequest, res: Response) => {
         }
         const newResource = await ResourceRepository.create({ resource_name, role, status: 'ACTIVE' });
         res.status(201).json(newResource);
-    } catch (error) {
+    } catch (error: any) {
+        if (error && (error.number === 2627 || error.number === 2601 || (error.message && error.message.includes('UNIQUE KEY constraint')))) {
+            return res.status(409).json({ message: 'Resource already exists' });
+        }
         res.status(500).json({ message: 'Error creating resource', error });
     }
 };

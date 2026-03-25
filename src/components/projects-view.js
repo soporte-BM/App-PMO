@@ -1,10 +1,10 @@
-import { StorageService } from '../services/storage.js';
+import { ApiService } from '../services/apiService.js';
 import { AnalyticsService } from '../services/analytics.js';
 import { formatPercent, parsePeriodToMmmYy } from '../utils/format.js';
 
 export async function renderProjects(container) {
-    let projects = await StorageService.getProjects();
-    const entries = await StorageService.getAllEntries();
+    let projects = await ApiService.getProjects();
+    const entries = await ApiService.getAllEntries();
     
     // Sort projects by Proyecto_Codigo by default
     projects.sort((a, b) => a.code.localeCompare(b.code));
@@ -111,7 +111,7 @@ export async function renderProjects(container) {
 
         const btnNew = document.getElementById('btn-new-project');
         if (btnNew) {
-            btnNew.addEventListener('click', async () => {
+            btnNew.addEventListener('click', () => {
                 const name = prompt('Ingrese el nombre del nuevo proyecto:');
                 if (name && name.trim() !== '') {
                     const newCode = `PRJ-${String(projects.length + 1).padStart(3, '0')}`;
@@ -120,26 +120,30 @@ export async function renderProjects(container) {
                         name: name.trim(),
                         status: 'Activo'
                     };
-                    await StorageService.saveProject(newProject);
-                    projects = await StorageService.getProjects(); // Refresh data
-                    render();
+                    ApiService.saveProject(newProject).then(() => {
+                        ApiService.getProjects().then(p => {
+                            projects = p;
+                            render();
+                        });
+                    }).catch(err => alert("Error al crear proyecto: " + err.message));
                 }
             });
         }
 
         const selects = document.querySelectorAll('.status-select');
         selects.forEach(select => {
-            select.addEventListener('change', async (e) => {
+            select.addEventListener('async change', async (e) => {
                 const id = e.target.getAttribute('data-id');
                 const newStatus = e.target.value;
-                const project = projects.find(p => p.id === id);
+                const project = projects.find(p => p.id == id); // id from API might be a number
                 if (project) {
                     project.status = newStatus;
                     try {
-                        await StorageService.saveProject(project);
+                        // Normally we'd use an update endpoint, but for now we re-save
+                        await ApiService.saveProject(project); 
                     } catch (error) {
                         alert('Error al guardar el estado: ' + error.message);
-                        projects = StorageService.getProjects();
+                        projects = await ApiService.getProjects();
                         render();
                     }
                 }
@@ -148,7 +152,7 @@ export async function renderProjects(container) {
 
         const editBtns = document.querySelectorAll('.btn-edit-project');
         editBtns.forEach(btn => {
-            btn.addEventListener('click', async (e) => {
+            btn.addEventListener('click', (e) => {
                 const projectName = e.target.closest('button').dataset.name;
                 openEditModal(projectName);
             });
@@ -156,22 +160,14 @@ export async function renderProjects(container) {
 
         const deleteBtns = document.querySelectorAll('.btn-delete-project');
         deleteBtns.forEach(btn => {
-            btn.addEventListener('click', async (e) => {
+            btn.addEventListener('click', (e) => {
                 const btnEl = e.target.closest('button');
                 const projectName = btnEl.dataset.name;
                 const projectId = btnEl.dataset.id;
                 
                 if (confirm(`¿Está seguro de que desea eliminar el proyecto "${projectName}"?`)) {
-                    const allProjects = StorageService.getProjects();
-                    const remaining = allProjects.filter(p => p.id !== projectId);
-                    localStorage.setItem('pmo_projects_v1', JSON.stringify(remaining));
-                    
-                    const allEntries = StorageService.getAllEntries();
-                    const remainingEntries = allEntries.filter(e => e.project !== projectName);
-                    localStorage.setItem('pmo_app_data_v1', JSON.stringify(remainingEntries));
-                    
-                    projects = remaining;
-                    render();
+                    // This violates standard CRUD since we don't have delete endpoint yet, but we will mock it
+                    alert('Eliminación de proyectos no soportada en esta versión con SQL.');
                 }
             });
         });
@@ -186,10 +182,10 @@ export async function renderProjects(container) {
         const btnClearImports = document.getElementById('btn-clear-imports');
         if (btnClearImports) {
             btnClearImports.addEventListener('click', async () => {
-                const allEntries = StorageService.getAllEntries();
+                const allEntries = await ApiService.getAllEntries();
                 const historicalEntries = allEntries.filter(e =>
                     e.professionals && e.professionals.length === 1 &&
-                    (e.professionals[0].name === 'Carga Histórica' || e.professionals[0].name === 'Recurso Importado')
+                    (e.professionals[0].resourceName === 'Carga Histórica' || e.professionals[0].resourceName === 'Recurso Importado')
                 );
 
                 if (historicalEntries.length === 0) {
@@ -197,20 +193,7 @@ export async function renderProjects(container) {
                     return;
                 }
 
-                const realCount = historicalEntries.filter(e => (e.tipoRegistro || 'REAL') === 'REAL').length;
-                const projCount = historicalEntries.filter(e => e.tipoRegistro === 'PROYECCION').length;
-
-                if (!confirm(`Se eliminarán ${historicalEntries.length} registros históricos importados desde Excel:\n✔️ REAL: ${realCount}\n📊 PROYECCION: ${projCount}\n\nLos datos de Cierre de Mes NO se verán afectados.\n\n¿Confirmar eliminación?`)) {
-                    return;
-                }
-
-                const remaining = allEntries.filter(e =>
-                    !(e.professionals && e.professionals.length === 1 &&
-                    (e.professionals[0].name === 'Carga Histórica' || e.professionals[0].name === 'Recurso Importado'))
-                );
-                localStorage.setItem('pmo_app_data_v1', JSON.stringify(remaining));
-                alert(`✅ ${historicalEntries.length} registros eliminados. Ahora puedes reimportar el Excel con el Status correcto.`);
-                render();
+                alert('Limpieza masiva requiere endpoint especial en SQL. Contacte a soporte.');
             });
         }
     };
@@ -237,7 +220,7 @@ export async function renderProjects(container) {
         modalContainer.className = 'hidden';
         modalContainer.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001; background: transparent; width: 100%; display: flex; justify-content: center;';
 
-        const projectEntries = StorageService.getEntriesByProject(projectName);
+        const projectEntries = entries.filter(e => e.project === projectName);
 
         if (projectEntries.length === 0) {
             alert('Este proyecto no tiene registros (Cierre de Mes) para editar.');
@@ -277,7 +260,7 @@ export async function renderProjects(container) {
             if (!entry) return;
 
             const isHistorical = entry.professionals && entry.professionals.length === 1 && 
-                               (entry.professionals[0].name === 'Carga Histórica' || entry.professionals[0].name === 'Recurso Importado');
+                               (entry.professionals[0].resourceName === 'Carga Histórica' || entry.professionals[0].resourceName === 'Recurso Importado');
 
             let professionalsHtml = '';
             if (isHistorical) {
@@ -296,7 +279,7 @@ export async function renderProjects(container) {
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 5px;">
                             ${entry.professionals.map((p, i) => `
                                 <div style="display: flex; align-items: center; gap: 10px;">
-                                    <span style="flex:1; font-size: 0.9em; color: #4b5563;">${p.name}</span>
+                                    <span style="flex:1; font-size: 0.9em; color: #4b5563;">${p.resourceName || p.name}</span>
                                     <input type="number" class="form-input edit-prof-hour" data-index="${i}" value="${p.hours}" style="width: 80px;" min="0">
                                 </div>
                             `).join('')}
@@ -343,12 +326,12 @@ export async function renderProjects(container) {
             modalOverlay.classList.add('hidden');
         });
 
-        document.getElementById('btn-save-edit').addEventListener('click', async () => {
+        document.getElementById('btn-save-edit').addEventListener('click', () => {
             const entryId = selectPeriod.value;
             const entry = projectEntries.find(e => e.id === entryId);
             
             const isHistorical = entry.professionals && entry.professionals.length === 1 && 
-                               (entry.professionals[0].name === 'Carga Histórica' || entry.professionals[0].name === 'Recurso Importado');
+                               (entry.professionals[0].resourceName === 'Carga Histórica' || entry.professionals[0].resourceName === 'Recurso Importado');
             
             let updatedPros = [...entry.professionals];
             
@@ -368,27 +351,40 @@ export async function renderProjects(container) {
             };
 
             try {
-                StorageService.updateEntry(entryId, updatedData);
-                alert('Registro actualizado exitosamente.');
-                modalContainer.classList.add('hidden');
-                modalOverlay.classList.add('hidden');
-                
-                // Actualizar interfaz principal
-                const updatedEntries = StorageService.getAllEntries();
-                // Recalcular métricas si fuera necesario (render ya lo hace)
-                render();
+                // Ensure we pass project and month so ApiService can upsert
+                updatedData.projectCode = project.code;
+                updatedData.month = entry.month;
+                updatedData.project = projectName;
+
+                // Ensure professionals have 'name' property as expected by ApiService.saveEntry logic if changed
+                updatedData.professionals = updatedData.professionals.map(p => ({
+                    name: p.resourceName || p.name,
+                    hours: p.hours
+                }));
+
+                ApiService.updateEntry(entryId, updatedData).then(() => {
+                    alert('Registro actualizado exitosamente.');
+                    modalContainer.classList.add('hidden');
+                    modalOverlay.classList.add('hidden');
+                    
+                    // Actualizar interfaz principal
+                    ApiService.getAllEntries().then(e => {
+                        // Render uses entries from outer variables, so we need to trigger re-render properly or reload
+                        window.location.reload(); 
+                    });
+                });
             } catch (error) {
                 alert(error.message);
             }
         });
     };
 
-    const handleExcelUpload = async (e) => {
+    const handleExcelUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = async (evt) => {
+        reader.onload = (evt) => {
             try {
                 const bstr = evt.target.result;
                 const wb = XLSX.read(bstr, { type: 'binary' });
@@ -417,8 +413,8 @@ export async function renderProjects(container) {
                 let overwrittenCount = 0;
                 let errors = [];
 
-                const currentProjects = StorageService.getProjects();
-                const allEntries = StorageService.getAllEntries();
+                ApiService.getProjects().then(async (currentProjects) => {
+                const allEntries = entries;
                 const processedRows = new Set();
 
                 for (let index = 0; index < data.length; index++) {
@@ -494,7 +490,10 @@ export async function renderProjects(container) {
                             manager: rowManager,
                             status: rowStatus
                         };
-                        await StorageService.saveProject(project);
+                        await ApiService.saveProject(project).catch(e => {
+                            errorCount++;
+                            errors.push(`Error al guardar proyecto ${rowCode}: ` + e.message);
+                        });
                         currentProjects.push(project); 
                     }
 
@@ -531,11 +530,11 @@ export async function renderProjects(container) {
 
                     if (existingEntryIndex > -1) {
                          const existingEntryId = allEntries[existingEntryIndex].id;
-                         StorageService.updateEntry(existingEntryId, entryData);
+                         await ApiService.updateEntry(existingEntryId, entryData);
                          allEntries[existingEntryIndex] = { ...allEntries[existingEntryIndex], ...entryData };
                     } else {
-                         const savedEntry = StorageService.saveEntry(entryData);
-                         allEntries.push(savedEntry);
+                         const savedEntry = await ApiService.saveEntry(entryData);
+                         allEntries.push(savedEntry || entryData);
                     }
                 }
 
@@ -551,8 +550,9 @@ export async function renderProjects(container) {
                 alert(message);
                 
                 // Refresh list
-                projects = StorageService.getProjects();
-                render();
+                window.location.reload();
+
+                }); // end of ApiService.getProjects().then
 
             } catch (err) {
                 console.error(err);

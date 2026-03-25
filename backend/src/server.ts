@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -16,7 +16,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(helmet({ contentSecurityPolicy: false }));
+app.use(helmet());
 app.use(cors());
 app.use(morgan('dev'));
 app.use(express.json());
@@ -27,20 +27,14 @@ app.use('/api/resources', resourceRoutes);
 app.use('/api/rates', rateRoutes);
 app.use('/api/closures', closureRoutes);
 
-import path from "path";
-
 // Health Check
+import { Request, Response } from "express";
+// ...
 app.get("/health", (req: Request, res: Response) => {
     res.status(200).json({ ok: true });
 });
 
-// Serve frontend static files
-const frontendPath = path.join(__dirname, '../../');
-app.use(express.static(frontendPath));
 
-app.use((req: Request, res: Response) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-});
 // Start Server
 const startServer = async () => {
     try {

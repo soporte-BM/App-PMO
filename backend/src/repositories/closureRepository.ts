@@ -1,7 +1,5 @@
-import { ClosureModel } from '../models/Closure';
-import { ProjectModel } from '../models/Project';
-import { ResourceModel } from '../models/Resource';
-import { RateModel } from '../models/Rate';
+import sql from 'mssql';
+import { getPool } from '../db';
 
 export interface ClosureEntry {
     resourceName: string;
@@ -9,112 +7,60 @@ export interface ClosureEntry {
 }
 
 export interface Closure {
-    id?: string;
-    project_id: string;
+    id?: number;
+    project_id: number;
     period: string;
     status: 'DRAFT' | 'VALIDATED';
     revenue: number;
     third_party_costs: number;
     resources?: any[];
     kpis?: any;
-    project_name?: string;
 }
 
 export const ClosureRepository = {
-    getAll: async () => {
-        const closures = await ClosureModel.find()
-            .populate('project')
-            .populate('resources.resource')
-            .lean();
-
-        return closures.map((closure: any) => {
-            let laborDirect = 0;
-            let laborIndirect = 0;
-            const resources = closure.resources.map((r: any) => {
-                const h = r.hours;
-                const dRate = r.rate_snapshot_direct || 0;
-                const iRate = r.rate_snapshot_indirect || 0;
-                laborDirect += h * dRate;
-                laborIndirect += h * iRate;
-                return {
-                    resource_id: r.resource._id.toString(),
-                    resource_name: r.resource.resource_name,
-                    role: r.resource.role,
-                    hours: h,
-                    rate_snapshot_direct: dRate,
-                    rate_snapshot_indirect: iRate
-                };
-            });
-            const totalCost = laborDirect + laborIndirect + closure.third_party_costs;
-            const margin = closure.revenue - totalCost;
-            const profitability = closure.revenue > 0 ? (margin / closure.revenue) * 100 : 0;
-            return {
-                id: closure._id.toString(),
-                project_id: closure.project._id.toString(),
-                project_code: closure.project.project_code,
-                project_name: closure.project.name,
-                period: closure.period,
-                status: closure.status,
-                revenue: closure.revenue,
-                third_party_costs: closure.third_party_costs,
-                resources,
-                kpis: {
-                    laborDirectCost: laborDirect,
-                    laborIndirectCost: laborIndirect,
-                    totalCost,
-                    margin,
-                    profitabilityPct: parseFloat(profitability.toFixed(2))
-                }
-            };
-        });
-    },
-
     getByProjectAndPeriod: async (projectCode: string, period: string) => {
-        const project = await ProjectModel.findOne({ project_code: projectCode }).lean();
-        if (!project) return null;
+        const pool = getPool();
+        // Get Closure Header
+        const closureResult = await pool.request()
+            .input('project_code', sql.VarChar, projectCode)
+            .input('period', sql.Date, period)
+            .query(`
+        SELECT c.*, p.name as project_name 
+        FROM MonthlyClosures c
+        JOIN Projects p ON c.project_id = p.id
+        WHERE p.project_code = @project_code AND c.period = @period
+      `);
 
-        const closure = await ClosureModel.findOne({ project: project._id, period })
-            .populate('resources.resource')
-            .lean();
+        if (closureResult.recordset.length === 0) return null;
 
-        if (!closure) return null;
+        const closure = closureResult.recordset[0];
 
-        const formattedClosure: Closure = {
-            id: closure._id.toString(),
-            project_id: closure.project.toString(),
-            period: closure.period,
-            status: closure.status,
-            revenue: closure.revenue,
-            third_party_costs: closure.third_party_costs,
-            project_name: project.name,
-            resources: []
-        };
+        // Get Resources
+        const resourcesResult = await pool.request()
+            .input('closure_id', sql.Int, closure.id)
+            .query(`
+        SELECT crh.*, r.resource_name, r.role
+        FROM ClosureResourceHours crh
+        JOIN Resources r ON crh.resource_id = r.id
+        WHERE crh.closure_id = @closure_id
+      `);
 
+        closure.resources = resourcesResult.recordset;
+
+        // Calculate KPIs
         let laborDirect = 0;
         let laborIndirect = 0;
 
         closure.resources.forEach((r: any) => {
-            const h = r.hours;
-            const dRate = r.rate_snapshot_direct || 0;
-            const iRate = r.rate_snapshot_indirect || 0;
-            laborDirect += h * dRate;
-            laborIndirect += h * iRate;
-
-            formattedClosure.resources!.push({
-                resource_id: r.resource._id.toString(),
-                resource_name: r.resource.resource_name,
-                role: r.resource.role,
-                hours: h,
-                rate_snapshot_direct: dRate,
-                rate_snapshot_indirect: iRate
-            });
+            laborDirect += r.hours * r.rate_snapshot_direct;
+            laborIndirect += r.hours * r.rate_snapshot_indirect;
         });
 
-        const totalCost = laborDirect + laborIndirect + formattedClosure.third_party_costs;
-        const margin = formattedClosure.revenue - totalCost;
-        const profitability = formattedClosure.revenue > 0 ? (margin / formattedClosure.revenue) * 100 : 0;
+        const totalCost = laborDirect + laborIndirect + closure.third_party_costs;
+        const margin = closure.revenue - totalCost;
+        const profitability = closure.revenue > 0 ? (margin / closure.revenue) * 100 : 0;
 
-        formattedClosure.kpis = {
+        closure.kpis = {
             laborDirectCost: laborDirect,
             laborIndirectCost: laborIndirect,
             totalCost,
@@ -122,67 +68,182 @@ export const ClosureRepository = {
             profitabilityPct: parseFloat(profitability.toFixed(2))
         };
 
-        return formattedClosure;
+        return closure;
+    },
+
+    getAllClosures: async () => {
+        const pool = getPool();
+        // Get all closures with project names
+        const closureResult = await pool.request()
+            .query(`
+        SELECT c.*, p.name as project_name 
+        FROM MonthlyClosures c
+        JOIN Projects p ON c.project_id = p.id
+      `);
+
+        if (closureResult.recordset.length === 0) return [];
+
+        const closures = closureResult.recordset;
+
+        // Get all resources for all closures
+        const resourcesResult = await pool.request()
+            .query(`
+        SELECT crh.*, r.resource_name, r.role
+        FROM ClosureResourceHours crh
+        JOIN Resources r ON crh.resource_id = r.id
+      `);
+
+        const resourcesByClosure = new Map();
+        resourcesResult.recordset.forEach(r => {
+            if (!resourcesByClosure.has(r.closure_id)) {
+                resourcesByClosure.set(r.closure_id, []);
+            }
+            resourcesByClosure.get(r.closure_id).push(r);
+        });
+
+        // Map resources to closures
+        const mappedClosures = closures.map((closure: any) => {
+            closure.resources = resourcesByClosure.get(closure.id) || [];
+            
+            // Calculate KPIs
+            let laborDirect = 0;
+            let laborIndirect = 0;
+
+            closure.resources.forEach((r: any) => {
+                laborDirect += r.hours * r.rate_snapshot_direct;
+                laborIndirect += r.hours * r.rate_snapshot_indirect;
+            });
+
+            const totalCost = laborDirect + laborIndirect + closure.third_party_costs;
+            const margin = closure.revenue - totalCost;
+            const profitability = closure.revenue > 0 ? (margin / closure.revenue) * 100 : 0;
+
+            closure.kpis = {
+                laborDirectCost: laborDirect,
+                laborIndirectCost: laborIndirect,
+                totalCost,
+                margin,
+                profitabilityPct: parseFloat(profitability.toFixed(2))
+            };
+
+            return closure;
+        });
+
+        return mappedClosures;
     },
 
     saveDraft: async (projectCode: string, period: string, data: any, user: string) => {
-        const project = await ProjectModel.findOne({ project_code: projectCode });
-        if (!project) throw new Error('Project not found');
+        const pool = getPool();
+        const transaction = new sql.Transaction(pool);
 
-        const existing = await ClosureModel.findOne({ project: project._id, period });
-        if (existing && existing.status === 'VALIDATED') {
-            throw new Error('Cannot modify a VALIDATED closure. Unvalidate first.');
+        try {
+            await transaction.begin();
+
+            // 1. Get Project ID
+            const projRes = await transaction.request()
+                .input('code', sql.VarChar, projectCode)
+                .query('SELECT id FROM Projects WHERE project_code = @code');
+
+            if (projRes.recordset.length === 0) throw new Error('Project not found');
+            const projectId = projRes.recordset[0].id;
+
+            // 2. Upsert Closure Header
+            // Check existence
+            const checkRes = await transaction.request()
+                .input('project_id', sql.Int, projectId)
+                .input('period', sql.Date, period)
+                .query('SELECT id, status FROM MonthlyClosures WHERE project_id = @project_id AND period = @period');
+
+            let closureId;
+
+            if (checkRes.recordset.length > 0) {
+                const existing = checkRes.recordset[0];
+                if (existing.status === 'VALIDATED') {
+                    throw new Error('Cannot modify a VALIDATED closure. Unvalidate first.');
+                }
+                closureId = existing.id;
+
+                await transaction.request()
+                    .input('id', sql.Int, closureId)
+                    .input('revenue', sql.Decimal(15, 2), data.revenue)
+                    .input('tpc', sql.Decimal(15, 2), data.thirdPartyCosts)
+                    .input('user', sql.VarChar, user)
+                    .query(`
+                    UPDATE MonthlyClosures 
+                    SET revenue = @revenue, third_party_costs = @tpc, updated_at = GETDATE() -- created_by ignored on update usually
+                    WHERE id = @id
+                `);
+            } else {
+                const insertRes = await transaction.request()
+                    .input('project_id', sql.Int, projectId)
+                    .input('period', sql.Date, period)
+                    .input('revenue', sql.Decimal(15, 2), data.revenue)
+                    .input('tpc', sql.Decimal(15, 2), data.thirdPartyCosts)
+                    .input('user', sql.VarChar, user)
+                    .query(`
+                    INSERT INTO MonthlyClosures (project_id, period, status, revenue, third_party_costs, created_by)
+                    OUTPUT INSERTED.id
+                    VALUES (@project_id, @period, 'DRAFT', @revenue, @tpc, @user)
+                `);
+                closureId = insertRes.recordset[0].id;
+            }
+
+            // 3. Update Resources (Delete all and Re-insert logic is simplest for full save)
+            await transaction.request()
+                .input('closure_id', sql.Int, closureId)
+                .query('DELETE FROM ClosureResourceHours WHERE closure_id = @closure_id');
+
+            for (const line of data.resources) {
+                // Find resource and Get Rate for Period
+                const rateRes = await transaction.request()
+                    .input('name', sql.VarChar, line.resourceName)
+                    .input('period', sql.Date, period)
+                    .query(`
+                    SELECT r.id, COALESCE(rr.direct_rate, 0) as direct_rate, COALESCE(rr.indirect_rate, 0) as indirect_rate
+                    FROM Resources r
+                    LEFT JOIN ResourceMonthlyRates rr ON r.id = rr.resource_id AND rr.period = @period
+                    WHERE r.resource_name = @name
+                `);
+
+                if (rateRes.recordset.length === 0) throw new Error(`Resource ${line.resourceName} not found`);
+
+                const rData = rateRes.recordset[0];
+                // Optional: Block if rate is 0? For now allow, but maybe warn. DRAFT allows it.
+
+                await transaction.request()
+                    .input('closure_id', sql.Int, closureId)
+                    .input('resource_id', sql.Int, rData.id)
+                    .input('hours', sql.Decimal(10, 2), line.hours)
+                    .input('direct', sql.Decimal(10, 2), rData.direct_rate)
+                    .input('indirect', sql.Decimal(10, 2), rData.indirect_rate)
+                    .query(`
+                    INSERT INTO ClosureResourceHours (closure_id, resource_id, hours, rate_snapshot_direct, rate_snapshot_indirect)
+                    VALUES (@closure_id, @resource_id, @hours, @direct, @indirect)
+                `);
+            }
+
+            await transaction.commit();
+            return { id: closureId, status: 'DRAFT' };
+
+        } catch (err) {
+            await transaction.rollback();
+            throw err;
         }
-
-        const resourceLines = [];
-        for (const line of data.resources) {
-            const res = await ResourceModel.findOne({ resource_name: line.resourceName });
-            if (!res) throw new Error(`Resource ${line.resourceName} not found`);
-
-            const rate = await RateModel.findOne({ resource: res._id, period });
-
-            resourceLines.push({
-                resource: res._id,
-                hours: line.hours,
-                rate_snapshot_direct: rate ? rate.direct_rate : 0,
-                rate_snapshot_indirect: rate ? rate.indirect_rate : 0
-            });
-        }
-
-        let closureId;
-
-        if (existing) {
-            existing.revenue = data.revenue;
-            existing.third_party_costs = data.thirdPartyCosts;
-            existing.resources = resourceLines;
-            await existing.save();
-            closureId = existing._id.toString();
-        } else {
-            const newClosure = await ClosureModel.create({
-                project: project._id,
-                period,
-                status: 'DRAFT',
-                revenue: data.revenue,
-                third_party_costs: data.thirdPartyCosts,
-                resources: resourceLines,
-                created_by: user
-            });
-            closureId = newClosure._id.toString();
-        }
-
-        return { id: closureId, status: 'DRAFT' };
     },
 
-    setStatus: async (id: string, status: 'DRAFT' | 'VALIDATED', user: string) => {
-        const updateData: any = { status };
-        if (status === 'VALIDATED') {
-            updateData.validated_by = user;
-            updateData.validated_at = new Date();
-        }
-
-        const updated = await ClosureModel.findByIdAndUpdate(id, updateData, { new: true });
-        if (!updated) throw new Error(`Closure ${id} not found`);
-
-        return { id: updated._id.toString(), status: updated.status };
+    setStatus: async (id: number, status: 'DRAFT' | 'VALIDATED', user: string) => {
+        const pool = getPool();
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('status', sql.VarChar, status)
+            .input('user', sql.VarChar, user)
+            .query(`
+            UPDATE MonthlyClosures 
+            SET status = @status, 
+                validated_by = CASE WHEN @status = 'VALIDATED' THEN @user ELSE validated_by END,
+                validated_at = CASE WHEN @status = 'VALIDATED' THEN GETDATE() ELSE validated_at END
+            WHERE id = @id
+        `);
+        return { id, status };
     }
 };

@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const closureController_1 = require("../controllers/closureController");
+const auth_1 = require("../middleware/auth");
+const router = (0, express_1.Router)();
+router.use(auth_1.authMiddleware);
+router.get('/', closureController_1.getClosure);
+router.get('/:id/kpis', closureController_1.getClosureKPIs);
+router.post('/', (0, auth_1.requireRole)('Admin', 'PMO'), closureController_1.saveClosure);
+router.post('/:id/validate', (0, auth_1.requireRole)('Admin', 'PMO'), closureController_1.validateClosure);
+router.post('/:id/unvalidate', (0, auth_1.requireRole)('Admin'), closureController_1.unvalidateClosure);
+exports.default = router;

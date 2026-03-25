@@ -1,15 +1,31 @@
-import mongoose from 'mongoose';
+import sql from 'mssql';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/pmobm';
+const config: sql.config = {
+    user: process.env.SQL_USER,
+    password: process.env.SQL_PASSWORD,
+    server: process.env.SQL_SERVER || 'localhost',
+    database: process.env.SQL_DATABASE,
+    options: {
+        encrypt: true, // Use this if you're on Azure.
+        trustServerCertificate: true, // Change to false for production
+    },
+};
+
+
+let pool: sql.ConnectionPool | null = null;
 
 export const connectDB = async () => {
     try {
-        const conn = await mongoose.connect(MONGO_URI);
-        console.log(`Connected to MongoDB: ${conn.connection.host}`);
-        return conn;
+        console.log("Connecting to SQL Server with config:", {
+            ...config,
+            password: config.password ? '***' : undefined
+        });
+        pool = await sql.connect(config);
+        console.log('Connected to Azure SQL Database');
+        return pool;
     } catch (err) {
         console.error('Database connection failed:', err);
         throw err;
@@ -17,8 +33,8 @@ export const connectDB = async () => {
 };
 
 export const getPool = () => {
-    if (mongoose.connection.readyState !== 1) {
-        console.warn('Mongoose is not connected yet or was disconnected.');
+    if (!pool) {
+        throw new Error('Database not connected');
     }
-    return mongoose.connection;
+    return pool;
 };

@@ -1,4 +1,4 @@
-import { StorageService } from '../services/storage.js';
+import { ApiService } from '../services/apiService.js';
 import { AnalyticsService } from '../services/analytics.js';
 import { formatCurrency, formatPercent, formatPeriod } from '../utils/format.js';
 
@@ -9,8 +9,8 @@ export async function renderDashboard(container, options = {}) {
         showAllProjects = false 
     } = options;
 
-    const allProjects = await StorageService.getProjects();
-    const activeProjectNames = new Set(allProjects.filter(p => p.status === 'Activo').map(p => p.name));
+    const allProjects = await ApiService.getProjects();
+    const activeProjectNames = new Set(allProjects.filter(p => p.status === 'Activo' || p.status === 'ACTIVE').map(p => p.name));
     
     const projectCodeMap = new Map();
     allProjects.forEach(p => {
@@ -24,7 +24,7 @@ export async function renderDashboard(container, options = {}) {
                (entry.professionals[0].name === 'Carga Histórica' || entry.professionals[0].name === 'Recurso Importado');
     };
 
-    let rawEntries = await StorageService.getAllEntries();
+    let rawEntries = await ApiService.getAllEntries();
 
     // 1. Filter by Project Status (Active vs All)
     let filteredAllEntries = [...rawEntries];
@@ -107,21 +107,7 @@ export async function renderDashboard(container, options = {}) {
     const totalMargin = processedData.reduce((sum, e) => sum + e.margin, 0);
     const avgProfitability = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
 
-    // Insights
-    let insights = AnalyticsService.generateInsights(processedData);
-    
-    // Global Deviation Insight
-    const totalProjMargin = validProjEntries.reduce((sum, e) => sum + AnalyticsService.calculateMetrics(e).margin, 0);
-    if (totalProjMargin !== 0) {
-        const devPercent = ((totalProjMargin - totalMargin) / totalProjMargin) * 100;
-        insights.unshift({
-            title: 'Desviación de Margen (Proy vs Real)',
-            details: [`La desviación global registrada hasta la fecha es de ${devPercent.toFixed(1)}%.`],
-            type: devPercent < 0 ? 'warning' : 'info'
-        });
-    }
-    
-    insights = insights.slice(0, 3);
+    // Insights renderizados dinámicamente por initCharts para mantener consistencia 100% con la visualización
 
     const html = `
         <div class="dashboard-grid">
@@ -168,8 +154,8 @@ export async function renderDashboard(container, options = {}) {
                     <span class="kpi-trend text-secondary">Objetivo: 20%</span>
                 </div>
                 <div class="kpi-card">
-                    <span class="kpi-title">Registros Base</span>
-                    <span class="kpi-value">${validRealEntries.length}</span>
+                    <span class="kpi-title">Proyectos Activos</span>
+                    <span class="kpi-value">${activeProjectNames.size}</span>
                 </div>
                 <div class="kpi-card danger">
                     <span class="kpi-title">En Riesgo (<10%)</span>
@@ -182,6 +168,19 @@ export async function renderDashboard(container, options = {}) {
                 <div class="chart-header">
                     <h3 class="chart-title">Evolución del Negocio (Rentabilidad vs Ingresos/Costos)</h3>
                 </div>
+                <div class="custom-chart-legend" style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 0.9em; margin-bottom: 15px;">
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <strong>Líneas:</strong>
+                        <span style="display: flex; align-items: center; gap: 5px;"><span style="display: inline-block; width: 20px; border-bottom: 3px solid #2A7FDE;"></span> REAL</span>
+                        <span style="display: flex; align-items: center; gap: 5px;"><span style="display: inline-block; width: 20px; border-bottom: 3px dashed #2A7FDE;"></span> PROYECCIÓN</span>
+                    </div>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <strong>Barras:</strong>
+                        <span style="display: flex; align-items: center; gap: 5px;">Ingreso Total = </span>
+                        <span style="display: flex; align-items: center; gap: 5px;"><span style="display: inline-block; width: 14px; height: 14px; background: #7A7A7A;"></span> Costo Total</span> +
+                        <span style="display: flex; align-items: center; gap: 5px;"><span style="display: inline-block; width: 14px; height: 14px; background: #0B8E84;"></span> Margen</span>
+                    </div>
+                </div>
                 <div class="chart-wrapper">
                     <canvas id="profitChart"></canvas>
                 </div>
@@ -191,10 +190,10 @@ export async function renderDashboard(container, options = {}) {
              <div class="analysis-panel">
                 <h3 class="chart-title">Análisis Inteligente</h3>
                 <div class="analysis-grid">
-                    <div class="analysis-box">
+                    <div class="analysis-box" id="insights-container">
                         <h4>🔍 Hallazgos Principales</h4>
-                        <ul class="analysis-list">
-                            ${insights.map(i => `<li><strong>${i.title}</strong>: ${i.details.join(' ')}</li>`).join('')}
+                        <ul class="analysis-list" id="dashboard-insights-list">
+                            <!-- Populated dynamically by initCharts matching exact visual data -->
                         </ul>
                     </div>
                      <div class="analysis-box">
@@ -203,18 +202,18 @@ export async function renderDashboard(container, options = {}) {
                             <thead>
                                 <tr>
                                     <th>Status</th>
-                                    <th>Proyecto/Periodo</th>
+                                    <th>Proyecto</th>
                                     <th>Ingreso</th>
                                     <th>Margen %</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${processedData.map(p => {
+                                ${processedData.filter(p => activeProjectNames.has(p.project)).map(p => {
         const health = AnalyticsService.getHealthStatus(p.profitability);
         return `
                                     <tr>
                                         <td><span class="status-dot bg-${health.status}"></span></td>
-                                        <td>${p.project} <span style="font-size: 0.8em; color: #6b7280;">(${formatPeriod(p.month)})</span></td>
+                                        <td>${p.project}</td>
                                         <td>${formatCurrency(p.revenue)}</td>
                                         <td class="${health.status === 'danger' ? 'text-danger' : ''}"><strong>${formatPercent(p.profitability)}</strong></td>
                                     </tr>
@@ -405,9 +404,89 @@ function initCharts(allEntries, calcMode) {
             projMarg: projMargin,
             projProfit: projProfitPercent !== null ? projProfitPercent.toFixed(1) : 'N/A',
             rawProjProfit: projProfitPercent,
-            profitPercent: combinedProfitDesc.toFixed(1)
+            profitPercent: combinedProfitDesc.toFixed(1),
+            hasRealDot: profitData[profitData.length - 1] !== null,
+            hasProjDot: projProfitData[projProfitData.length - 1] !== null
         });
     });
+
+    const insights = [];
+
+    // 1.1 Desviación de Margen (Last period that has both REAL and PROJ original data != null in the chart)
+    let devPeriod = null;
+    for (let i = tooltipData.length - 1; i >= 0; i--) {
+        const d = tooltipData[i];
+        if (d.hasRealDot && d.hasProjDot && d.rawRealProfit !== null && d.rawProjProfit !== null && isFinite(d.rawRealProfit) && isFinite(d.rawProjProfit) && d.rawProjProfit !== 0) {
+            devPeriod = d;
+            break;
+        }
+    }
+    
+    if (devPeriod) {
+        const dev = ((devPeriod.rawProjProfit - devPeriod.rawRealProfit) / devPeriod.rawProjProfit) * 100;
+        let tipoWord = 'igual a';
+        if (dev > 0.1) tipoWord = 'bajo';
+        else if (dev < -0.1) tipoWord = 'sobre';
+
+        insights.push({
+            title: 'Desviación de Margen',
+            details: [`El resultado real está ${Math.abs(dev).toFixed(1)}% ${tipoWord} la proyección.`],
+            data: `(Desviación: ${dev.toFixed(1)}%)`
+        });
+    }
+
+    // 1.2 Tendencia Reciente (Last 3 visible real non-null points)
+    const realPoints = tooltipData.filter(d => d.hasRealDot && d.rawRealProfit !== null && isFinite(d.rawRealProfit));
+    if (realPoints.length >= 3) {
+        const p0 = realPoints[realPoints.length - 3];
+        const p2 = realPoints[realPoints.length - 1];
+
+        const diff = p2.rawRealProfit - p0.rawRealProfit;
+
+        let trendLabel = 'estable';
+        if (diff > 0.5) trendLabel = 'creciente';
+        else if (diff < -0.5) trendLabel = 'decreciente';
+
+        insights.push({
+            title: 'Tendencia Reciente',
+            details: [`La evolución en los últimos 3 periodos reales es ${trendLabel}.`],
+            data: `(Variación Rentabilidad: ${diff > 0 ? '+' : ''}${diff.toFixed(1)}%)`
+        });
+    }
+
+    // 1.3 Proyección Final (Last visible projection point in chart)
+    let lastProjPoint = null;
+    for (let i = tooltipData.length - 1; i >= 0; i--) {
+        if (tooltipData[i].hasProjDot && tooltipData[i].rawProjProfit !== null && isFinite(tooltipData[i].rawProjProfit)) {
+            lastProjPoint = tooltipData[i];
+            break;
+        }
+    }
+    
+    if (lastProjPoint) {
+        const finalProf = lastProjPoint.rawProjProfit;
+        let proyClass = 'alta rentabilidad';
+        if (finalProf < 10) proyClass = 'baja rentabilidad o deterioro';
+        else if (finalProf < 20) proyClass = 'rentabilidad media';
+
+        insights.push({
+            title: 'Proyección Final',
+            details: [`El resultado esperado en base a la proyección es de ${proyClass}.`],
+            data: `(Rentabilidad Proyectada: ${finalProf.toFixed(1)}%)`
+        });
+    }
+
+    const insightsHtml = insights.map(i => `
+        <li>
+            <strong>${i.title}:</strong> ${i.details.join(' ')}
+            <br/><span>${i.data}</span>
+        </li>`).join('');
+        
+    const insightsListEl = document.getElementById('dashboard-insights-list');
+    
+    if (insightsListEl) {
+        insightsListEl.innerHTML = insightsHtml;
+    }
 
     const customCanvasBackgroundColor = {
         id: 'customCanvasBackgroundColor',
@@ -508,30 +587,7 @@ function initCharts(allEntries, calcMode) {
                     color: '#F3F3F3',
                 },
                 legend: { 
-                    display: true,
-                    position: 'top',
-                    labels: {
-                        filter: function(item) {
-                            return item.text === 'REAL' || item.text === 'PROYECCION';
-                        }
-                    },
-                    onClick: function(e, legendItem, legend) {
-                        const ci = legend.chart;
-                        const isReal = legendItem.text === 'REAL';
-                        const indices = isReal ? [0, 2, 3] : [1, 4, 5];
-                        const isCurrentlyHidden = ci.isDatasetVisible(indices[0]) === false;
-
-                        indices.forEach(i => {
-                            if (!isCurrentlyHidden) {
-                                ci.hide(i);
-                                legendItem.hidden = true;
-                            } else {
-                                ci.show(i);
-                                legendItem.hidden = false;
-                            }
-                        });
-                        ci.update();
-                    }
+                    display: false
                 },
                 tooltip: {
                     callbacks: {

@@ -2,6 +2,15 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { RateRepository } from '../repositories/rateRepository';
 
+export const getAllRates = async (req: AuthRequest, res: Response) => {
+    try {
+        const rates = await RateRepository.getAllRates();
+        res.json(rates);
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching all rates', error });
+    }
+};
+
 export const getRates = async (req: AuthRequest, res: Response) => {
     try {
         const { period } = req.query;

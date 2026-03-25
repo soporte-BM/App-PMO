@@ -1,11 +1,8 @@
-import { StorageService } from '../services/storage.js';
-import { formatCurrency, formatPeriod, parsePeriodToMmmYy, periodToApiFormat } from '../utils/format.js';
+import { ApiService } from '../services/apiService.js';
+import { formatCurrency, formatPeriod, parsePeriodToMmmYy } from '../utils/format.js';
 
 export async function renderResources(container) {
-    // Obtener periodo actual en formato YYYY-MM-01 para traer tarifas
-    const now = new Date();
-    const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    let professionals = await StorageService.getProfessionals(currentPeriod);
+    let professionals = await ApiService.getAllRates();
 
     const render = () => {
         const html = `
@@ -57,7 +54,7 @@ export async function renderResources(container) {
         // Manual Add
         const btnNew = document.getElementById('btn-new-pro');
         if (btnNew) {
-            btnNew.addEventListener('click', async () => {
+            btnNew.addEventListener('click', () => {
                 const name = prompt('Nombre del profesional:');
                 if (!name) return;
                 let period = prompt('Periodo (Ej: ene-25):');
@@ -73,15 +70,17 @@ export async function renderResources(container) {
                 const indirectRate = prompt('Tarifa Indirecta (CLP):');
                 if (!indirectRate || isNaN(indirectRate)) return;
 
-                await StorageService.saveProfessional({
+                ApiService.saveProfessional({
                     name: name.trim(),
-                    period: periodToApiFormat(parsedPeriod),
+                    period: period.trim(),
                     directRate: Number(directRate),
                     indirectRate: Number(indirectRate)
-                });
-                
-                professionals = await StorageService.getProfessionals(currentPeriod);
-                render();
+                }).then(() => {
+                    ApiService.getAllRates().then(p => {
+                        professionals = p;
+                        render();
+                    });
+                }).catch(err => alert("Error al crear tarifa: " + err.message));
             });
         }
 
@@ -94,12 +93,12 @@ export async function renderResources(container) {
                 fileInput.click();
             });
 
-            fileInput.addEventListener('change', async (e) => {
+            fileInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
 
                 const reader = new FileReader();
-                reader.onload = async function(evt) {
+                reader.onload = function(evt) {
                     try {
                         const data = evt.target.result;
                         // Assuming XLSX is available in global scope (via index.html)
@@ -122,7 +121,7 @@ export async function renderResources(container) {
                                     if (parsedPeriod) {
                                         newPros.push({
                                             name: String(row[0]).trim(),
-                                            period: periodToApiFormat(parsedPeriod),
+                                            period: parsedPeriod,
                                             directRate: Number(row[2]) || 0,
                                             indirectRate: Number(row[3]) || 0
                                         });
@@ -131,10 +130,13 @@ export async function renderResources(container) {
                             }
                             
                             if (newPros.length > 0) {
-                                await StorageService.saveProfessionalsBulk(newPros);
-                                alert(`Se cargaron/actualizaron ${newPros.length} profesionales exitosamente.`);
-                                professionals = await StorageService.getProfessionals(currentPeriod);
-                                render();
+                                ApiService.saveProfessionalsBulk(newPros).then(() => {
+                                    alert(`Se cargaron/actualizaron ${newPros.length} profesionales exitosamente.`);
+                                    ApiService.getAllRates().then(p => {
+                                        professionals = p;
+                                        render();
+                                    });
+                                }).catch(err => alert("Error en bulk: " + err.message));
                             } else {
                                 alert('No se encontraron filas válidas en el Excel. Formato esperado: Nombre, Periodo, Tarifa Directa, Tarifa Indirecta.');
                             }
