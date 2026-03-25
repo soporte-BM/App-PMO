@@ -1,4 +1,5 @@
 import express from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
@@ -32,6 +33,15 @@ import { Request, Response } from "express";
 // ...
 app.get("/health", (req: Request, res: Response) => {
     res.status(200).json({ ok: true });
+});
+
+// Serve frontend static files
+const frontendPath = path.join(__dirname, '../../');
+app.use(express.static(frontendPath));
+
+// Handle any other routes by serving the index.html
+app.get('*', (req: Request, res: Response) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 
