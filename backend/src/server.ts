@@ -40,7 +40,7 @@ const frontendPath = path.join(__dirname, '../../');
 app.use(express.static(frontendPath));
 
 // Handle any other routes by serving the index.html
-app.get('*', (req: Request, res: Response) => {
+app.use((req: Request, res: Response) => {
     res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
